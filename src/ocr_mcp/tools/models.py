@@ -45,6 +45,10 @@ OCRBackend = Literal[
     "mistral-ocr",
     "nemotron-vl",
     "unlimited-ocr",
+    "indra-ocr",
+    "indra",
+    "mineru-2.5",
+    "mineru",
     "florence-2",
 ]
 

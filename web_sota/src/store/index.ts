@@ -18,9 +18,11 @@ interface OCRTextState {
   ocrText: string;
   ocrJobId: string | null;
   ocrStatus: "idle" | "processing" | "completed" | "failed";
+  ocrResult?: any | null;
   setOcrText: (text: string) => void;
   setOcrJobId: (id: string | null) => void;
   setOcrStatus: (status: "idle" | "processing" | "completed" | "failed") => void;
+  setOcrResult: (result: any | null) => void;
   clearOcr: () => void;
 }
 
@@ -38,10 +40,12 @@ const useOcrTextStore = create<OCRTextState>()(
       ocrText: "",
       ocrJobId: null,
       ocrStatus: "idle",
+      ocrResult: null,
       setOcrText: (text) => set({ ocrText: text }),
       setOcrJobId: (id) => set({ ocrJobId: id }),
       setOcrStatus: (status) => set({ ocrStatus: status }),
-      clearOcr: () => set({ ocrText: "", ocrJobId: null, ocrStatus: "idle" }),
+      setOcrResult: (result) => set({ ocrResult: result }),
+      clearOcr: () => set({ ocrText: "", ocrJobId: null, ocrStatus: "idle", ocrResult: null }),
     }),
     { name: "ocr-mcp-ocr-text" },
   ),

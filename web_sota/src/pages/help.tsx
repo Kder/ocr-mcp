@@ -317,6 +317,15 @@ export function Help() {
                     <td className="p-3 text-slate-300">Older stack vs newest VL options; still needs torch.</td>
                   </tr>
                   <tr>
+                    <td className="p-3 font-mono text-emerald-200/90">indra-ocr</td>
+                    <td className="p-3">
+                      Ultra-fast CPU OCR (ONNX, ~1M params), markdown/JSON layout blocks, reading order.
+                    </td>
+                    <td className="p-3 text-slate-300">
+                      v1.1 with 80+ languages, handwriting, rotation handling, math mode; no GPU needed.
+                    </td>
+                  </tr>
+                  <tr>
                     <td className="p-3 font-mono text-emerald-200/90">tesseract</td>
                     <td className="p-3">Quick CPU OCR, many languages, no GPU.</td>
                     <td className="p-3 text-slate-300">

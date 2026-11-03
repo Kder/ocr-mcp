@@ -173,6 +173,7 @@ export function Depot() {
                 <option value="unlimited-ocr">unlimited-ocr</option>
                 <option value="paddleocr-vl">paddleocr-vl</option>
                 <option value="deepseek-ocr2">deepseek-ocr2</option>
+                <option value="indra-ocr">indra-ocr</option>
                 <option value="tesseract">tesseract</option>
                 <option value="easyocr">easyocr</option>
                 <option value="pymupdf_digital_bypass">pymupdf_digital_bypass</option>

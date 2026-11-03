@@ -527,6 +527,7 @@ async def upload_file(
     file: UploadFile = FILE_DEPENDENCY,
     ocr_mode: str = Form("text"),
     backend: str = Form("auto"),
+    math: bool = Form(False),
 ):
     """Upload and process a file"""
     try:
@@ -552,7 +553,7 @@ async def upload_file(
 
         # Use real OCR when backend_manager available, else demo
         if backend_manager and backend_manager.get_available_backends():
-            background_tasks.add_task(process_file_background, job_id, temp_file_path, ocr_mode, backend)
+            background_tasks.add_task(process_file_background, job_id, temp_file_path, ocr_mode, backend, math=math)
         else:
             background_tasks.add_task(process_file_demo, job_id, temp_file_path, file.filename, ocr_mode, backend)
 
@@ -1474,13 +1475,17 @@ def _store_ocr_job_result(job_id: str, result: dict[str, Any]) -> None:
         processing_jobs[job_id]["result"] = result
 
 
-async def process_file_background(job_id: str, file_path: str, ocr_mode: str, backend: str):
+async def process_file_background(
+    job_id: str, file_path: str, ocr_mode: str, backend: str, math: bool = False, **kwargs
+):
     """Process single file in background"""
     try:
         if not backend_manager:
             raise Exception("Backend manager not initialized")
 
-        result = await backend_manager.process_with_backend(backend_name=backend, image_path=file_path, mode=ocr_mode)
+        result = await backend_manager.process_with_backend(
+            backend_name=backend, image_path=file_path, mode=ocr_mode, math=math, **kwargs
+        )
 
         _store_ocr_job_result(job_id, result)
 
@@ -2109,6 +2114,7 @@ async def ocr_scanned_document(
     filename: str = Form(...),
     ocr_mode: str = Form("text"),
     backend: str = Form("auto"),
+    math: bool = Form(False),
 ):
     """Process an already scanned document with OCR"""
     try:
@@ -2134,7 +2140,7 @@ async def ocr_scanned_document(
 
         # Process in background (note: we don't delete the file after processing for scans)
         if backend_manager and backend_manager.get_available_backends():
-            background_tasks.add_task(process_scanned_background, job_id, str(file_path), ocr_mode, backend)
+            background_tasks.add_task(process_scanned_background, job_id, str(file_path), ocr_mode, backend, math=math)
         else:
             # demo mode
             background_tasks.add_task(process_file_demo, job_id, str(file_path), filename, ocr_mode, backend)
@@ -2219,13 +2225,17 @@ async def ocr_selection(
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-async def process_scanned_background(job_id: str, file_path: str, ocr_mode: str, backend: str):
+async def process_scanned_background(
+    job_id: str, file_path: str, ocr_mode: str, backend: str, math: bool = False, **kwargs
+):
     """Process scanned file in background without deleting original"""
     try:
         if not backend_manager:
             raise Exception("Backend manager not initialized")
 
-        result = await backend_manager.process_with_backend(backend_name=backend, image_path=file_path, mode=ocr_mode)
+        result = await backend_manager.process_with_backend(
+            backend_name=backend, image_path=file_path, mode=ocr_mode, math=math, **kwargs
+        )
 
         _store_ocr_job_result(job_id, result)
 
