@@ -35,7 +35,9 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from .http_config import RemoteOCRConfig
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +45,7 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 
-class OCRConfig(BaseModel):
+class OCRConfig(RemoteOCRConfig):
     """Configuration for OCR-MCP server."""
 
     # Cache and model directories (platform-aware: use home cache unless OCR_MODEL_DIR set)

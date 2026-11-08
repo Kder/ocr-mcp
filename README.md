@@ -1,143 +1,151 @@
-# OCR-MCP
+# OCR-MCP — OvisOCR3 HTTP edition
 
-<p align="center">
-  <a href="https://github.com/casey/just"><img src="https://img.shields.io/badge/just-ready_to_go-7c5cfc?style=flat-square&logo=just&logoColor=white" alt="Just"></a>
-  <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json" alt="Ruff"></a>
-  <a href="https://python.org"><img src="https://img.shields.io/badge/Python-3.13+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python"></a>
-  <a href="https://github.com/PrefectHQ/fastmcp"><img src="https://img.shields.io/badge/FastMCP-3.2-7c5cfc?style=flat-square" alt="FastMCP"></a>
-</p>
+Lightweight **Streamable HTTP MCP** service for images and PDFs. Calls an external
+OpenAI-compatible vision endpoint, defaulting to **Halogen / OvisOCR3**. No local
+weights, GPU runtime, scanner, web UI, Ollama or tool calling on the OCR model.
+Python **3.12+**. MIT license.
 
-**Complete AI OCR webapp and MCP server.** A **web app** with a streamlined dashboard (drag-and-drop or scanner, pick an engine, click one button) and a **FastMCP 3.1 MCP server** for agentic IDEsClaude, Cursor, Windsurfso agents can run OCR, preprocessing, and workflows as tools. Same 14 engines, WIA scanner (Windows), and pipelines; one repo.
-
-**Topics:** `ocr`, `mcp`, `fastmcp`, `document-processing`, `scanner`, `wia`, `pdf`, `computer-vision`, `model-context-protocol`, `llm`
-
-[![Version](https://img.shields.io/badge/Version-0.2.1--beta-blue)](https://github.com/sandraschi/ocr-mcp/releases)
-[![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)](https://python.org)
-[![FastMCP](https://img.shields.io/badge/FastMCP-3.1-0066CC)](https://github.com/jlowin/fastmcp)
-[![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
-[![OCR Engines](https://img.shields.io/badge/OCR%20Engines-14-orange)](docs/OCR_MODELS.md)
-[![Scanner](https://img.shields.io/badge/Scanner-WIA%20%28Windows%29-0078D4?logo=windows)](docs/INSTALL.md)
-[![Web UI](https://img.shields.io/badge/Web%20UI-React-61DAFB?logo=react&logoColor=black)](docs/INSTALL.md)
-[![Status](https://img.shields.io/badge/Status-Alpha-green)](OCR-MCP_MASTER_PLAN.md)
-
-## What it does
-
-- **Web app**  React (`web_sota/`) + FastAPI (`backend/app.py`): upload or scan, pick engine, get text/PDF/JSON. Ports **10858** (Vite) and **10859** (API). In-app **Help** (`/help`) documents the web UI, the MCP server, and OCR backends.
-- **MCP server**  FastMCP 3.1 stdio: tools for OCR, preprocessing, scanner, workflows. **Sampling defaults to local [Ollama](https://ollama.com)** (`http://127.0.0.1:11434/v1`, model `llama3.2`)  no cloud API key. Set **`OCR_SAMPLING_USE_CLIENT_LLM=1`** to use the host IDEs LLM instead. Mistral OCR uses **`MISTRAL_API_KEY`** when you call that backend. See [AI_FEATURES.md](docs/AI_FEATURES.md).
-
-**Features:** 14 backends (Unlimited-OCR, PaddleOCR-VL-1.5, Nemotron VL 8B, DeepSeek-OCR-2, MinerU2.5-Pro, Mistral OCR)  Auto backend selection  Preprocessing (deskew, enhance, crop)  Layout & table extraction  **Form detection & reconstruction** (checkbox, text field, radio, signature detection → fillable ODT via libreoffice-mcp)  Quality assessment  WIA scanner  **Auto-Scan watcher** (detect documents on flatbed, auto-OCR)  Batch & pipelines  Multi-format export
-
-## Docs
-
-| Doc | Description |
-|-----|-------------|
-| [**Install**](docs/INSTALL.md) | Install, run MCP, Web UI (`start.ps1`, ports 10858/10859), PyYAML notes, client config |
-| [**Recent improvements**](docs/IMPROVEMENTS.md) | Incremental improvements log, newest first: backends, UI, hygiene |
-| [**Backend deps**](docs/BACKEND_DEPS.md) | Web FastAPI backend: same venv as `ocr-mcp`, `pyproject.toml`, PyTorch, `OCR_AUTO_INSTALL_DEPS` |
-| [**Technical**](docs/TECHNICAL.md) | Architecture, tools, config, development, packaging |
-| [**OCR models**](docs/OCR_MODELS.md) | Engines, capabilities, hardware (see also [AI_MODELS.md](AI_MODELS.md)) |
-| [**Backend requirements**](docs/OCR_BACKEND_REQUIREMENTS.md) | Per-model pip packages, system deps, env/config |
-| [**MCP toolset matrix**](docs/MCP_TOOLSET_MATRIX.md) | Portmanteau tools, operation status, corpus v0 |
-| [**AI features**](docs/AI_FEATURES.md) | Sampling, SEP-1577, agentic workflows, prompts |
-| [**Webapp redesign**](docs/WEBAPP_REDESIGN.md) | July 2026 redesign: dashboard-first workflow, removed legacy frontend, 5-page sidebar |
-| [**Book scanning**](docs/BOOK_SCANNING.md) | Home book scanning guide: V-cradle, CZUR, auto-scan integration |
-| [**Book pipeline**](docs/BOOK_SCANNING_PIPELINE.md) | Spine-to-EPUB pipeline plan: cut, scan, OCR, chapter detect, EPUB, Calibre |
-| [**In-app Help**](web_sota/src/pages/help.tsx) | Source for `/help`: webapp vs MCP vs backends (mirrors INSTALL / TECHNICAL) |
-| [**SOTA Compliance**](../mcp-central-docs/standards/AGENT_PROTOCOLS.md) |  Verified SOTA v12.0 Architecture |
-
-Also: [JUSTFILE.md](docs/JUSTFILE.md) (just recipes)  [OCR-MCP_MASTER_PLAN.md](OCR-MCP_MASTER_PLAN.md) (roadmap)  [tests/README.md](tests/README.md) (testing)
-
-## Quick Start
-
-```powershell
-git clone https://github.com/sandraschi/ocr-mcp
-cd ocr-mcp
-just
+```text
+DSH → HTTP MCP /mcp → OCR-MCP → Halogen /v1/chat/completions → OvisOCR3
+                         └── PyMuPDF: PDF text extraction / page rendering
 ```
 
-This opens an interactive dashboard showing all available commands. Run `just bootstrap` to install dependencies, then `just serve` or `just dev` to start.
+## Install and run
 
-### Manual Setup
+From the checkout:
 
-If you don't have `just` installed:
-
-## 🛡️ Industrial Quality Stack
-
-This project adheres to **SOTA 14.1** industrial standards for high-fidelity agentic orchestration:
-
-- **Python (Core)**: [Ruff](https://astral.sh/ruff) for linting and formatting. Zero-tolerance for `print` statements in core handlers (`T201`).
-- **Webapp (UI)**: [Biome](https://biomejs.dev/) for sub-millisecond linting. Strict `noConsoleLog` enforcement.
-- **Protocol Compliance**: Hardened `stdout/stderr` isolation to ensure crash-resistant JSON-RPC communication.
-- **Automation**: [Justfile](./justfile) recipes for all fleet operations (`just lint`, `just fix`, `just dev`).
-- **Security**: Automated audits via `bandit` and `safety`.
-
-## Install (Claude Desktop)
-
-```powershell
-irm https://github.com/sandraschi/ocr-mcp/releases/latest/download/install.ps1 | iex
+```bash
+uv sync --frozen
+cp .env.example .env
+# Edit OVISOCR3_BASE_URL to point to your existing Halogen server.
+uv run --frozen ocr-mcp
 ```
 
-Or download `ocr-mcp.mcpb` from
-[releases](https://github.com/sandraschi/ocr-mcp/releases) (stable name) and
-install it in Claude Desktop. Other clients (Cursor, Windsurf, opencode):
+Or install the package with `pip install .`, then run `ocr-mcp`.
+`python -m ocr_mcp` uses the same HTTP-only entry point. There is no transport
+switch in the lightweight service. MCP endpoint: `http://127.0.0.1:10859/mcp`.
+`--host` and `--port` override the listening address. Halogen must already serve
+`OvisOCR3`; OCR-MCP does not deploy or download the model.
+
+Base dependencies: FastMCP, httpx, Pillow, PyMuPDF, Pydantic, python-dotenv, and
+their transitive dependencies. Torch, Transformers, EasyOCR, OpenCV, Diffusers,
+NumPy, FastAPI, Tesseract and Poppler are **not required** by this edition.
+PyMuPDF renders PDFs without a Poppler subprocess.
+
+## Tools
+
+Only **`process_document`** and **`get_status`** are registered.
+Connect DSH using its Streamable HTTP MCP configuration and the endpoint above.
+Example `process_document` arguments:
 
 ```json
 {
-  "mcpServers": {
-    "ocr-mcp": {
-      "command": "uv",
-      "args": ["--directory", "D:/Dev/repos/ocr-mcp", "run", "ocr-mcp"]
-    }
-  }
+  "operation": "process_document",
+  "source_path": "/documents/scan.pdf",
+  "backend": "ovisocr3",
+  "ocr_mode": "markdown",
+  "pages": [1, 3, 5],
+  "dpi": 200,
+  "force_ocr": false
 }
 ```
 
-## Stack
+- `source_path` is a **server-local file path**. DSH and OCR-MCP must share a
+  volume/path, or the document must already exist on the MCP server. There is no
+  arbitrary URL fetch or upload endpoint. Set `OCR_DOCUMENT_ROOT` to restrict paths.
+- Images: PNG, JPEG, WebP, single-frame TIFF/BMP; decoded and sent as PNG. Optional
+  `region: [x, y, width, height]` crops an image. Animated/multi-frame images are rejected.
+- PDFs: 1-based page selection, deduplicated and sorted in original page order.
+  Text-only pages use embedded text. Pages with raster images (including scans with
+  digital headers) use full-page OCR. `force_ocr=true` renders every selected page.
+  Embedded PDF text is plain text; its extraction does not reconstruct Markdown tables.
+- `ocr_mode`: `markdown` (default), `text`, `format` or `auto`. Markdown/format/auto
+  use the configurable prompt. HTML tables and LaTeX are returned verbatim.
+- `backend`: `ovisocr3`, `openai-ocr`, and `auto` address the **same configured
+  remote model**. There is no fallback to a GPU model or another engine.
+- PDF results include `pages`, per-page `method`/errors, numbered combined `text`,
+  `processed_pages` and `failed_pages`. Any failed page sets `success=false`;
+  `partial_success=true` indicates retained successful pages. Callers must inspect
+  these fields. No invented model confidence: `confidence=null`.
+- `get_status({"check_upstream": true})` explicitly queries `/v1/models` and verifies
+  the configured model ID. The default status only reports local configuration.
+  A successful model-list check does not establish OCR quality or device placement.
 
-| Layer | Tech |
-|-------|------|
-| MCP server | Python 3.12+, FastMCP 3.4 (stdio + streamable HTTP), Pydantic v2 |
-| REST backend | FastAPI + Uvicorn (`backend/app.py`, port 10859) |
-| Web UI | React + Vite + TypeScript + TailwindCSS + Zustand + Lucide + Framer Motion (`web_sota/`, port 10858) |
-| Desktop | Tauri 2.0 NSIS (`native/`) |
-| Lint/type | Ruff (T20), Pyright, Biome, tsc |
+## Configuration
 
-## MCP tools (portmanteau)
+Copy [.env.example](.env.example). Core settings:
 
-| Tool | Operations |
-|------|-----------|
-| `process_document` | process_document, process_batch, analyze_layout, extract_tables, detect_forms, analyze_reading_order, classify_type, extract_metadata, assess_quality, validate_accuracy, compare_backends, analyze_image_quality |
-| `manage_image` | preprocess, convert, pdf_to_images, embed_text |
-| `operate_scanner` | list_scanners, scanner_properties, configure_scan, scan_document, scan_batch, preview_scan, diagnostics |
-| `manage_workflow` | process_batch_intelligent, create/execute/monitor pipeline, optimize_processing, ocr_health_check, list_backends, manage_models |
-| `manage_corpus` | register, update_metadata, get, search, list_recent, attach_ocr_result |
-| `ingest_book` | detect_chapters, detect_metadata, assemble_epub, full_pipeline |
-| `execute_agentic_workflow` | goal-driven multi-step OCR via sampling (SEP-1577) |
-| `llm_ops` | list_models, loaded, switch_model, unload_all, vram |
-| `get_help` / `get_status` / `shutdown_server` | docs, health, graceful exit |
+| Variable | Default | Meaning |
+|---|---|---|
+| `OVISOCR3_BASE_URL` | `http://127.0.0.1:8731/v1` | OpenAI-compatible API root, including `/v1` |
+| `OVISOCR3_MODEL` | `OvisOCR3` | Exact model ID; also configurable for other vision OCR servers |
+| `OVISOCR3_API_KEY` | empty | Optional Bearer authentication |
+| `OVISOCR3_TIMEOUT` | `180` | Per-page upstream timeout in seconds |
+| `OVISOCR3_PROMPT` | `Convert this page to Markdown.` | Prompt for formatted OCR |
+| `MCP_HOST` / `MCP_PORT` | `127.0.0.1` / `10859` | MCP listening address |
+| `OCR_DOCUMENT_ROOT` | unset | Optional permitted document directory |
 
-## Env vars
+Each OCR request contains one image and **no `tools`**. Requests to the upstream
+are serialized across documents; PDF pages are rendered and released one at a time.
+Failures are returned without upstream response bodies or document data. Requests
+are not retried automatically, preventing duplicate long-running inference.
+HTTP failures, timeouts, missing models, invalid responses and truncated completions
+are explicit errors. When a response includes a `model`, it must match the configured
+ID. The remote server remains responsible for honoring that ID and device placement.
 
-| Var | Default | Purpose |
-|-----|---------|---------|
-| `OCR_DEFAULT_BACKEND` | auto | default engine (`tesseract`, `paddleocr-vl`, `mistral-ocr`, …) |
-| `MISTRAL_API_KEY` | — | Mistral OCR cloud backend |
-| `OCR_TRANSPORT` / `MCP_TRANSPORT` | stdio | `stdio`, `http`, `sse` |
-| `MCP_PORT` / `OCR_PORT` | 10859 | HTTP bind port |
-| `TESSERACT_CMD` / `POPPLER_PATH` | — | native helper paths (Windows) |
-| `OCR_SAMPLING_USE_CLIENT_LLM` | 0 | `1` = use host IDE LLM for sampling |
+Defaults limit input files to 50 MiB, decoded/rendered images to 25 million pixels,
+selected PDF pages to 100 and OCR/extracted content to 1 million characters per document.
+See `.env.example` for overrides. DPI range is 150–300. Password-protected PDFs are
+unsupported. Long PDFs can exceed client timeouts/context limits: request fewer pages
+per call. OCR caching, batch directories, advanced table parsing and output-file export
+are outside this minimal edition.
 
-## Ports
+## Container / Podman
 
-| Service | Port |
-|---------|------|
-| Vite frontend | 10858 |
-| FastAPI backend + MCP HTTP (`/mcp`) | 10859 |
+```bash
+podman build -t ocr-mcp-http .
+podman run --rm -p 127.0.0.1:10859:10859 \
+  -v ./documents:/documents:ro \
+  -e OCR_DOCUMENT_ROOT=/documents \
+  -e OVISOCR3_BASE_URL=http://host.containers.internal:8731/v1 \
+  ocr-mcp-http
+```
 
-Full reference: [llms-full.txt](llms-full.txt). Backend deps:
-[docs/BACKEND_DEPS.md](docs/BACKEND_DEPS.md). Onboarding:
-[docs/ONBOARDING.md](docs/ONBOARDING.md).
+Inside a container, `127.0.0.1` refers to that container. Use an address reachable
+from the OCR-MCP container (a shared container-network service name also works).
+The image runs as a non-root user; mounted documents need read permission.
+The lightweight endpoint has no built-in authentication: keep it bound to localhost
+or put an authenticated reverse proxy in front of it when deploying remotely.
+The container publishes only MCP; it includes no UI or local OCR binaries.
 
-## License
+## Development and validation
 
-MIT — see [LICENSE](LICENSE).
+```bash
+uv sync --frozen --extra dev
+uv run --frozen pytest -c pyproject.toml --confcutdir=tests/http_only tests/http_only -o addopts='' -q
+uv run --frozen ruff check src/ocr_mcp/http_server.py src/ocr_mcp/document_pipeline.py \
+  src/ocr_mcp/core/http_config.py src/ocr_mcp/core/backend.py \
+  src/ocr_mcp/backends/ovisocr3_backend.py tests/http_only
+```
+
+The isolated test root avoids importing the legacy suite's heavy fixtures. Tests
+cover the API contract, image formats/cropping, errors, PDF page ordering and partial
+failures, mixed PDFs, resource limits, and an installed HTTP server over TCP against
+a simulated Halogen endpoint. They do **not** validate actual OvisOCR3 recognition
+accuracy or NPU execution. For real deployment, run `get_status(check_upstream=true)`
+and process a known image and mixed PDF through your Halogen instance.
+
+## Legacy full application
+
+Existing local backends, scanner, web UI and agent workflows remain in the source
+as optional legacy functionality. To use them explicitly:
+
+```bash
+uv sync --frozen --extra full --extra legacy-dev
+uv run --frozen ocr-mcp-full  # old stdio/HTTP application, original environment settings
+```
+
+The old Web UI entry point remains `ocr-mcp-webapp` and requires the `full` extra
+plus the separate frontend install. Existing documentation under `docs/` largely
+refers to that full application; its plain `uv sync`/`ocr-mcp` instructions are
+superseded by this README. `poetry.lock` is historical; `uv.lock` is authoritative.

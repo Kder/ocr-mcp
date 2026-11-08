@@ -1,4 +1,4 @@
-name: CI
+name: HTTP-only CI
 
 on:
   push:
@@ -8,5 +8,27 @@ on:
   workflow_dispatch:
 
 jobs:
-  ci:
-    uses: sandraschi/fleet-ci/.github/workflows/hybrid.yml@v1
+  http-only:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+      - run: uv sync --frozen --extra dev
+      - name: Verify lightweight dependency boundary
+        run: |
+          uv run --frozen python - <<'PY'
+          import importlib.util
+          for module in ('torch', 'transformers', 'cv2', 'numpy', 'easyocr', 'diffusers', 'fastapi'):
+              assert importlib.util.find_spec(module) is None, module
+          PY
+      - name: Test HTTP OCR and PDF workflow
+        run: uv run --frozen pytest -c pyproject.toml --confcutdir=tests/http_only tests/http_only -o addopts='' -q
+      - name: Lint lightweight implementation
+        run: >-
+          uv run --frozen ruff check
+          src/ocr_mcp/http_server.py src/ocr_mcp/document_pipeline.py
+          src/ocr_mcp/core/http_config.py src/ocr_mcp/core/backend.py
+          src/ocr_mcp/backends/ovisocr3_backend.py tests/http_only
+      - run: uv build

@@ -39,6 +39,7 @@ from typing import Any
 
 from PIL import Image, ImageDraw
 
+from .backend import OCRBackend
 from .backend_optimizer import BackendOptimizer
 from .config import OCRConfig
 from .model_manager import model_manager
@@ -137,31 +138,6 @@ def canonical_backend_name(name: str) -> str:
     return _BACKEND_NAME_ALIASES.get(name, name)
 
 
-class OCRBackend:
-    """Base class for OCR backends."""
-
-    def __init__(self, name: str, config: OCRConfig):
-        self.name = name
-        self.config = config
-        self._available = False
-
-    def is_available(self) -> bool:
-        """Check if this backend is available."""
-        return self._available
-
-    async def process_image(self, image_path: str, mode: str = "text", **kwargs) -> dict[str, Any]:
-        """Process an image with this backend."""
-        raise NotImplementedError("Subclasses must implement process_image")
-
-    def get_capabilities(self) -> dict[str, Any]:
-        """Get backend capabilities."""
-        return {
-            "name": self.name,
-            "available": self.is_available(),
-            "modes": ["text"],  # Default capabilities
-            "languages": ["en"],
-            "gpu_support": False,
-        }
 
 
 class BackendManager:
@@ -187,6 +163,14 @@ class BackendManager:
         """Initialize backend registry for lazy loading - no actual imports yet!"""
         # Registry of available backends with their import paths and model sizes
         self.backend_registry = {
+            "ovisocr3": {
+                "module": "..backends.ovisocr3_backend", "class": "OvisOCR3Backend",
+                "model_size": "external", "description": "OvisOCR3 via OpenAI-compatible HTTP",
+            },
+            "openai-ocr": {
+                "module": "..backends.ovisocr3_backend", "class": "OpenAICompatibleOCRBackend",
+                "model_size": "external", "description": "OpenAI-compatible HTTP OCR",
+            },
             "paddleocr-vl": {
                 "module": "..backends.paddleocr_vl_backend",
                 "class": "PaddleOCRVLBackend",
@@ -325,7 +309,9 @@ class BackendManager:
         if name not in self.backend_registry:
             return False
 
-        if name == "tesseract":
+        if name in {"ovisocr3", "openai-ocr"}:
+            return importlib.util.find_spec("httpx") is not None
+        elif name == "tesseract":
             return importlib.util.find_spec("pytesseract") is not None
         elif name == "indra-ocr":
             return importlib.util.find_spec("indra_ocr") is not None

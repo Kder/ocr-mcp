@@ -87,6 +87,15 @@ async def process_document(
 
         start_time = time.time()
 
+        # Remote backends share the lightweight per-page PDF pipeline.
+        if backend in {"ovisocr3", "openai-ocr"}:
+            from ..document_pipeline import process_remote_document
+
+            remote = backend_manager.get_backend(backend)
+            if remote is None:
+                return {"success": False, "error": "Remote OCR backend unavailable"}
+            return await process_remote_document(source_path, remote, config or backend_manager.config, mode=mode, region=region)
+
         # Digital PDF fast bypass check
         if source_path.lower().endswith(".pdf"):
             try:
@@ -121,7 +130,9 @@ async def process_document(
             confidence = result.get("confidence", 0.0)
             recommendations = []
 
-            if confidence > 0.9:
+            if confidence is None:
+                recommendations.append("OCR confidence unavailable; verify important fields manually.")
+            elif confidence > 0.9:
                 recommendations.append("High confidence result - this backend works well for your document")
             elif confidence > 0.7:
                 recommendations.append("Good confidence - consider trying other backends for comparison")

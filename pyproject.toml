@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ocr-mcp"
 version = "0.3.0-beta"
-description = "Comprehensive OCR and document understanding: 14 engines, tables, forms, scanners, PDFs"
+description = "Lightweight HTTP MCP for OvisOCR3 and OpenAI-compatible image/PDF OCR"
 authors = [
     {name = "Sandra", email = "sandraschipal@gmail.com"}
 ]
@@ -27,6 +27,17 @@ classifiers = [
 keywords = ["ocr", "mcp", "fastmcp", "computer-vision", "document-processing", "ai", "ml"]
 
 dependencies = [
+    "fastmcp>=3.4.4,<4",
+    "httpx>=0.28.1",
+    "pillow>=10.0.0",
+    "pymupdf>=1.23.0",
+    "pydantic>=2.0.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4.0", "pytest-asyncio>=0.21.0", "ruff>=0.16.0,<0.17"]
+full = [
     "fastmcp>=3.4.4,<4",
     "pydantic>=2.0.0",
     "python-dotenv>=1.0.0",
@@ -82,7 +93,6 @@ dependencies = [
     "diffusers>=0.31.0",
 ]
 
-[project.optional-dependencies]
 ml = [
     "transformers>=4.35.0",
     "torchvision>=0.15.0",
@@ -110,7 +120,7 @@ scanner = [
     "comtypes>=1.2.0; sys_platform == 'win32'",
     "pywin32>=305; sys_platform == 'win32'",
 ]
-dev = [
+legacy-dev = [
     "pytest>=7.4.0",
     "pytest-asyncio>=0.21.0",
     "hypothesis>=6.0.0",
@@ -137,7 +147,8 @@ Issues = "https://github.com/sandraschi/ocr-mcp/issues"
 Documentation = "https://github.com/sandraschi/ocr-mcp/blob/main/README.md"
 
 [project.scripts]
-ocr-mcp = "ocr_mcp.server:main"
+ocr-mcp = "ocr_mcp.http_server:main"
+ocr-mcp-full = "ocr_mcp.server:main"
 ocr-mcp-webapp = "ocr_mcp.webapp_runner:main"
 ocr-mcp-test = "scripts.run_tests:main"
 ocr-mcp-install-models = "scripts.install_models:main"

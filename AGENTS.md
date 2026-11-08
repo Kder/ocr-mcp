@@ -1,30 +1,20 @@
-# ocr-mcp — Agent Guide
+# OCR-MCP agent guide
 
-## Overview
-FastMCP server providing comprehensive OCR capabilities to the MCP ecosystem
+Default workflow: lightweight HTTP-only OCR using an external Halogen/OvisOCR3 or
+OpenAI-compatible service. Python 3.12+, uv. Use the existing checkout; cloud tasks
+are isolated, so do not create worktrees unless requested.
 
-## Entry Points
-- `uv run ocr-mcp` → `ocr_mcp.server:main`
-- `uv run ocr-mcp-webapp` → `ocr_mcp.webapp_runner:main`
-- `uv run ocr-mcp-test` → `scripts.run_tests:main`
-- `uv run ocr-mcp-install-models` → `scripts.install_models:main`
-- `uv run ocr-mcp-setup-dev` → `scripts.setup_dev_env:main`
+- Install: `uv sync --frozen --extra dev`
+- Run: `uv run --frozen ocr-mcp` (HTTP `/mcp`, default 127.0.0.1:10859)
+- Config: `.env.example`, `src/ocr_mcp/core/http_config.py`
+- Tests: `uv run --frozen pytest -c pyproject.toml --confcutdir=tests/http_only tests/http_only -o addopts='' -q`
+- Lint: `uv run --frozen ruff check src/ocr_mcp/http_server.py src/ocr_mcp/document_pipeline.py src/ocr_mcp/core/http_config.py src/ocr_mcp/core/backend.py src/ocr_mcp/backends/ovisocr3_backend.py tests/http_only`
 
-## Quick Ref
+Do not import legacy model/scanner/optimizer modules into the lightweight entry
+point. Keep real model confidence null when the provider does not supply it.
+Return page errors alongside successful PDF pages. Never fall back to another
+model. Do not log image data, upstream response bodies or API keys.
 
-```powershell
-uv run pytest tests/ -q
-```
-
-## Standards
-- FastMCP 3.2+ portmanteau tool pattern — tools use `operation` enum param
-- Responses: structured dicts with `success`, `message`, domain-specific fields
-- Dual transport: stdio (Claude Desktop) + HTTP (`MCP_TRANSPORT=http`)
-- See [mcp-central-docs](https://github.com/sandraschi/mcp-central-docs) for fleet-wide coding standards
-
-## Key Files
-- `README.md` — full documentation
-- `pyproject.toml` — build config and entry points
-- `CLAUDE.md` — Claude Code context (if present)
-
-Install docs: follow mcp-central-docs/standards/AGENT_INSTALL_REFERENCE.md
+Legacy functionality requires `--extra full`; its entry point is `ocr-mcp-full`.
+Legacy test fixtures also need `--extra legacy-dev`. See README before following
+older install/entry point instructions elsewhere in the repo.
