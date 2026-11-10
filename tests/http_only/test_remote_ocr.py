@@ -265,7 +265,7 @@ async def test_mcp_tools_and_document_call(image, monkeypatch):
 
 def test_lightweight_imports():
     assert "ocr_mcp.core.backend_manager" not in sys.modules
-    for name in ["torch", "transformers", "cv2", "easyocr", "diffusers", "ocr_mcp.server"]:
+    for name in ["torch", "transformers", "cv2", "easyocr", "diffusers", "vllm", "playwright", "bs4", "ocr_mcp.server"]:
         assert name not in sys.modules
 
 

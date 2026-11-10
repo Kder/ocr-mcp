@@ -36,6 +36,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+crosspage = ["beautifulsoup4>=4.12.0", "markdown-it-py>=3.0.0", "playwright>=1.40.0"]
 dev = ["pytest>=7.4.0", "pytest-asyncio>=0.21.0", "ruff>=0.16.0,<0.17"]
 full = [
     "fastmcp>=3.4.4,<4",
@@ -167,6 +168,8 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "*" = ["*.txt", "*.md", "*.json", "*.yaml", "*.yml"]
+"ocr_mcp" = ["prompts/*.txt", "prompts/*.md", "prompts/*.json"]
+"ocr_mcp._vendor.ovisocr3" = ["*.md", "*.txt", "*.json", "assets/*.js"]
 
 
 
@@ -224,7 +227,7 @@ exclude_lines = [
 [tool.ruff]
 line-length = 120
 target-version = "py312"
-exclude = ["scripts/venv_fixes"]
+exclude = ["scripts/venv_fixes", "src/ocr_mcp/_vendor"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "S", "UP", "RUF", "T20"]

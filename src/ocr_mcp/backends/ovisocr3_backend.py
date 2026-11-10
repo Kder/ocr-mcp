@@ -79,16 +79,51 @@ class OpenAICompatibleOCRBackend(OCRBackend):
         ):
             return self._error("INVALID_IMAGE", "Unreadable, unsupported, oversized image or invalid region")
         prompt = "Extract all text from this image." if mode == "text" else self.config.ovisocr3_prompt
+        return await self._complete([(mime, encoded)], prompt, "text" if mode == "text" else "markdown")
+
+    async def run_prompt(
+        self, image_paths: list[str], prompt: str, output_format: str, *, allow_truncated: bool = False
+    ) -> dict[str, Any]:
+        """Run a pinned task prompt on one or two images, without model tool calls."""
+        if not 1 <= len(image_paths) <= 2 or len(prompt) > self.config.max_prompt_chars:
+            return self._error("INPUT_LIMIT", "Tasks accept one or two images and a bounded prompt")
+        try:
+            images = [await asyncio.to_thread(self._encode_image, path, None) for path in image_paths]
+        except (OSError, ValueError, Image.DecompressionBombError, Image.DecompressionBombWarning):
+            return self._error("INVALID_IMAGE", "Unreadable, unsupported or oversized task image")
+        result = await self._complete(images, prompt, output_format)
+        if allow_truncated and result.get("error_code") == "TRUNCATED_RESPONSE":
+            return {
+                **result,
+                "success": True,
+                "text": result["raw_output"],
+                "finish_reason": "length",
+                "partial_success": True,
+            }
+        if result.get("success") and result.get("finish_reason") != "stop":
+            return {
+                **result,
+                "success": False,
+                "error_code": "INCOMPLETE_TASK_RESPONSE",
+                "error": "Task response must explicitly finish with stop",
+                "raw_output": result["text"],
+            }
+        return result
+
+    async def _complete(self, images: list[tuple[str, str]], prompt: str, output_format: str) -> dict[str, Any]:
         payload = {
             "model": self.config.ovisocr3_model,
             "stream": False,
+            "temperature": 0,
+            "max_tokens": self.config.ovisocr3_max_tokens,
             "messages": [
                 {
                     "role": "user",
                     "content": [
-                        {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{encoded}"}},
-                        {"type": "text", "text": prompt},
-                    ],
+                        {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{encoded}"}}
+                        for mime, encoded in images
+                    ]
+                    + [{"type": "text", "text": prompt}],
                 }
             ],
         }
@@ -102,16 +137,21 @@ class OpenAICompatibleOCRBackend(OCRBackend):
             content = data["choices"][0]["message"]["content"]
             if not isinstance(content, str) or not content.strip():
                 raise ValueError("Empty or non-text response")
-            if data["choices"][0].get("finish_reason") == "length":
-                return self._error("TRUNCATED_RESPONSE", "OCR response reached the model output limit")
             if len(content) > self.config.max_output_chars:
                 return self._error("OUTPUT_LIMIT", "OCR response exceeds OCR_MAX_OUTPUT_CHARS")
+            if data["choices"][0].get("finish_reason") == "length":
+                return {
+                    **self._error("TRUNCATED_RESPONSE", "OCR response reached the model output limit"),
+                    "raw_output": content,
+                    "finish_reason": "length",
+                }
             return {
                 "success": True,
                 "backend": self.name,
                 "model": self.config.ovisocr3_model,
                 "text": content,
-                "format": "text" if mode == "text" else "markdown",
+                "finish_reason": data["choices"][0].get("finish_reason"),
+                "format": output_format,
                 "confidence": None,
                 "confidence_source": "not_provided",
                 "metadata": {"provider": "openai-compatible", "remote_api": True},

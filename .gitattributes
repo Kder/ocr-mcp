@@ -22,3 +22,10 @@
 # Windows-only scripts keep CRLF (bat/cmd expect it)
 *.bat text eol=crlf
 *.cmd text eol=crlf
+
+# Pinned upstream files are verified byte-for-byte, including original line endings.
+src/ocr_mcp/prompts/** -text -eol
+src/ocr_mcp/_vendor/ovisocr3/** -text -eol
+# Original upstream licenses retain CRLF and upstream whitespace verbatim.
+src/ocr_mcp/prompts/LICENSE.txt -whitespace
+src/ocr_mcp/_vendor/ovisocr3/LICENSE.txt -whitespace

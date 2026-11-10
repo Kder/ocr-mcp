@@ -30,5 +30,21 @@ jobs:
           uv run --frozen ruff check
           src/ocr_mcp/http_server.py src/ocr_mcp/document_pipeline.py
           src/ocr_mcp/core/http_config.py src/ocr_mcp/core/backend.py
-          src/ocr_mcp/backends/ovisocr3_backend.py tests/http_only
+          src/ocr_mcp/backends/ovisocr3_backend.py
+          src/ocr_mcp/document_tasks.py src/ocr_mcp/task_prompts.py
+          src/ocr_mcp/output_adapters.py src/ocr_mcp/recursive_tables.py tests/http_only tests/crosspage
       - run: uv build
+
+  recursive-crosspage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+      - run: uv sync --frozen --extra dev --extra crosspage
+      - run: uv run --frozen --extra crosspage playwright install --with-deps chromium
+      - name: Test real rendering and recursive provenance with mock remote OCR
+        run: >-
+          uv run --frozen --extra dev --extra crosspage pytest -c pyproject.toml
+          --confcutdir=tests/crosspage tests/crosspage -o addopts='' -q

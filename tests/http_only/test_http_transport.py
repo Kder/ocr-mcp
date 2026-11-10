@@ -13,11 +13,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import httpx
 import pymupdf
+import pytest
 from fastmcp import Client
 from PIL import Image
 
 
-async def test_installed_http_server_end_to_end(tmp_path):
+@pytest.mark.parametrize("profile", ["basic", "document", "crosspage"])
+async def test_installed_http_server_end_to_end(tmp_path, profile):
     requests = []
 
     class Halogen(BaseHTTPRequestHandler):
@@ -62,6 +64,8 @@ async def test_installed_http_server_end_to_end(tmp_path):
         OVISOCR3_BASE_URL=f"http://127.0.0.1:{upstream.server_port}/v1",
         OVISOCR3_MODEL="OvisOCR3",
         OVISOCR3_API_KEY="",
+        OCR_MCP_PROFILE=profile,
+        OCR_MCP_TOOLS="",
         OCR_DOCUMENT_ROOT=str(tmp_path),
     )
     image = tmp_path / "image.png"
@@ -92,7 +96,12 @@ async def test_installed_http_server_end_to_end(tmp_path):
                 else:
                     raise AssertionError("HTTP MCP did not become ready")
             async with Client(f"http://127.0.0.1:{port}/mcp") as client:
-                assert {t.name for t in await client.list_tools()} == {"process_document", "get_status"}
+                expected = {"process_document", "get_status"}
+                if profile in {"document", "crosspage"}:
+                    expected |= {"analyze_document", "extract_information", "reconstruct_table"}
+                if profile == "crosspage":
+                    expected.add("reconstruct_document_tables")
+                assert {t.name for t in await client.list_tools()} == expected
                 status = await client.call_tool("get_status", {"check_upstream": True})
                 assert status.data["success"] and status.data["upstream"]["model_present"]
                 result = await client.call_tool("process_document", {"source_path": str(image)})

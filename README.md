@@ -34,7 +34,8 @@ PyMuPDF renders PDFs without a Poppler subprocess.
 
 ## Tools
 
-Only **`process_document`** and **`get_status`** are registered.
+By default, only **`process_document`** and **`get_status`** are registered.
+Optional model-card capabilities are described below.
 Connect DSH using its Streamable HTTP MCP configuration and the endpoint above.
 Example `process_document` arguments:
 
@@ -71,6 +72,115 @@ Example `process_document` arguments:
   the configured model ID. The default status only reports local configuration.
   A successful model-list check does not establish OCR quality or device placement.
 
+## Optional OvisOCR3 capabilities and tool exposure
+
+```bash
+OCR_MCP_PROFILE=document uv run --frozen ocr-mcp
+# Or expose only selected tools:
+OCR_MCP_TOOLS=process_document,get_status,reconstruct_table uv run --frozen ocr-mcp
+```
+
+The `basic` profile (default) keeps two tools; `document` exposes five.
+The opt-in `crosspage` profile exposes six, adding `reconstruct_document_tables`. An explicit
+`OCR_MCP_TOOLS` comma-separated allowlist overrides the profile; unknown names fail
+startup. All profiles use the same lightweight dependencies and HTTP transport.
+
+| Optional tool | Purpose | Key arguments |
+|---|---|---|
+| `analyze_document` | Analyze one image or PDF page with an official task prompt | `task`, `page`, plus task-specific inputs |
+| `extract_information` | Open, specified-field, or output-template KIE | `fields` OR `json_template`, `page` |
+| `reconstruct_table` | Native reconstruction of tables across two adjacent PDF pages | `source_path`, `pages: [2,3]`, `dpi` |
+| `reconstruct_document_tables` (crosspage only) | Recursive document-level reconstruction with re-rendering | `source_path`, consecutive `pages`, `stage1_prompt`, `dpi` |
+
+`analyze_document.task` supports `document_markdown`, `document_structured`,
+`document_layout`, `figure_captioning`, `plain_ocr`, `word_spotting`,
+`reference_grounding`, `region_ocr`, `formula_recognition`, `chart_parsing`,
+`text_translation`, `image_classification`, `visual_question_answering`, and
+`position_aware_vqa`. Conditional arguments include `question`, `references`,
+`target_region`, `target_language`, `candidate_labels` and `target_description`.
+These tasks always use the page image, including digital PDFs; text extraction
+cannot substitute for layout, visual analysis or table structure.
+
+Task boxes and `target_region` use normalized **[left, top, right, bottom]** in
+0..999, relative to the supplied image. This differs from the pixel
+**[x, y, width, height]** crop in `process_document`. Structured outputs preserve
+`raw_output` and include parsed `data`; invalid JSON or basic task structure is an
+error. Category/box constraints, chart string values, position-aware answer boxes,
+requested labels/keys and example-template structure are checked; recognition
+accuracy is not established by these checks. Structured parsing preserves complete
+prefix objects and their content with diagnostics on malformed/truncated JSON;
+that partial result never reports complete success. `json_template` is an output example with
+empty-string placeholders, **not** formal JSON Schema. Visual captions and VQA
+answers may contain unsupported details; verify against the original page.
+
+The table tool follows the model card's two-stage protocol: parse both full pages
+with the official Markdown prompt, then send their images plus parsed Markdown
+in a single two-image request. It returns complete table HTML for that boundary,
+actual source page numbers, local-to-actual page reference mapping, raw stage
+outputs, or an explicit negative prediction. It preserves page results rather
+than replacing the original text. Truncated parsing/reconstruction is an error.
+
+**`reconstruct_table` scope: exactly one adjacent page pair.** Independent pairwise
+results are not an assembled table spanning three or more pages. For that use the
+optional document-level tool below. Table-bearing content missing from
+stage 1 can cause continuation to be missed. HTML/Mermaid are returned as untrusted
+text, not executed or rendered. Image references describe crops; files are not
+created automatically.
+
+Official prompts and their Apache-2.0 license are bundled at a fixed revision;
+no runtime model-card downloads are needed. `temperature=0` and `max_tokens=16384`
+match the model card's usage defaults; `OVISOCR3_MAX_TOKENS` can lower the limit.
+See [the research and design notes](docs/OVISOCR3_CAPABILITIES.md) for capability
+coverage, evidence and remaining work.
+
+### Optional recursive document tables
+
+```bash
+uv sync --frozen --extra dev --extra crosspage
+# Not needed if a usable system Chromium is already installed:
+uv run --frozen --extra crosspage playwright install chromium
+OCR_MCP_PROFILE=crosspage uv run --frozen --extra crosspage ocr-mcp
+```
+
+This extra adds BeautifulSoup, markdown-it-py and Playwright; base installs still
+have no browser or ML dependencies. The service uses a system `chromium` if found,
+or Playwright's installed Chromium. `OCR_CHROMIUM_EXECUTABLE` can select an existing
+browser. Local MathJax is bundled at the same pinned revision, so model-supplied
+HTML has no external asset/network access. No vLLM/Torch backend is instantiated.
+
+`reconstruct_document_tables` accepts a server-local PDF and an optional consecutive
+page range, e.g. `pages: [2,3,4]`; omitting `pages` selects the whole bounded PDF.
+`stage1_prompt` is `document_structured` (default) or `document_markdown`. It follows
+the official algorithm: find table-bearing runs, merge from last to first, put the
+result in the earlier page, then re-render that updated Markdown before the next
+prediction. Crop aliases are restored to original input images. Final Markdown,
+HTML provenance and crop paths use actual PDF page IDs, including selected ranges.
+
+The reference algorithm conservatively binds the earlier last table to the later
+first table. It rejects multiple ambiguous merges, nested/incomplete table writeback
+and unmappable image references. It preserves non-table text. Stage-1 truncation,
+JSON prefix recovery or invalid structured fields produce explicit `PARTIAL` status;
+stage-2 truncation stops further merges while keeping prior results. Degraded formula
+rendering is surfaced as partial, rather than silently reporting complete success.
+
+Results include `document_markdown`, `merged_tables`, `steps`, `raw_stages`,
+`stage1_parse_warnings`, `render_warnings` and a server-local `artifact_dir`. Input
+images, raw generations, renderer diagnostics and final Markdown/crops remain under
+`OCR_ARTIFACT_DIR` (default: the OS temporary directory's `ocr-mcp-tables/`). The
+returned top-level `result.json` uses actual PDF page IDs; intermediate reference
+stage folders retain input-local indices and an explicit page mapping. Manage
+retention/access to these document artifacts in your deployment; no artifact HTTP
+server is exposed. The default document limit is 20 pages (`OCR_CROSSPAGE_MAX_PAGES`)
+and total raw generated characters are bounded by `OCR_MAX_OUTPUT_CHARS`. Readability,
+image/prompt/output limits can stop a long table with retained partial artifacts.
+
+Optional browser tests (mock OCR, real rendering):
+
+```bash
+uv run --frozen --extra dev --extra crosspage pytest -c pyproject.toml \
+  --confcutdir=tests/crosspage tests/crosspage -o addopts='' -q
+```
+
 ## Configuration
 
 Copy [.env.example](.env.example). Core settings:
@@ -97,7 +207,7 @@ Defaults limit input files to 50 MiB, decoded/rendered images to 25 million pixe
 selected PDF pages to 100 and OCR/extracted content to 1 million characters per document.
 See `.env.example` for overrides. DPI range is 150–300. Password-protected PDFs are
 unsupported. Long PDFs can exceed client timeouts/context limits: request fewer pages
-per call. OCR caching, batch directories, advanced table parsing and output-file export
+per call. OCR caching, batch directories and output-file export
 are outside this minimal edition.
 
 ## Container / Podman
@@ -125,7 +235,8 @@ uv sync --frozen --extra dev
 uv run --frozen pytest -c pyproject.toml --confcutdir=tests/http_only tests/http_only -o addopts='' -q
 uv run --frozen ruff check src/ocr_mcp/http_server.py src/ocr_mcp/document_pipeline.py \
   src/ocr_mcp/core/http_config.py src/ocr_mcp/core/backend.py \
-  src/ocr_mcp/backends/ovisocr3_backend.py tests/http_only
+  src/ocr_mcp/backends/ovisocr3_backend.py src/ocr_mcp/document_tasks.py \
+  src/ocr_mcp/task_prompts.py src/ocr_mcp/output_adapters.py src/ocr_mcp/recursive_tables.py tests/http_only
 ```
 
 The isolated test root avoids importing the legacy suite's heavy fixtures. Tests

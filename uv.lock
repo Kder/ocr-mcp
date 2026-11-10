@@ -235,6 +235,19 @@ wheels = [
 ]
 
 [[package]]
+name = "beautifulsoup4"
+version = "4.15.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "soupsieve" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/43/65/318323f98dbee45d42dff61d8f047181bc6f2268a9068cfad035a46be5af/beautifulsoup4-4.15.0.tar.gz", hash = "sha256:288e3ca7d54b06f2ac191970bc275c1939cb46d450b255bf6718b04aa37ab4f7", size = 632571, upload-time = "2026-06-07T16:44:20.453Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/88/c6/92fcd42f1ba33e1184263f25bfabf3d27c383410470f169e4b8163bf9c17/beautifulsoup4-4.15.0-py3-none-any.whl", hash = "sha256:d6f88de62e1d4e38ecb1077eb9724cd0eff29d2a08ca16a401e9b9e93f117cf9", size = 109924, upload-time = "2026-06-07T16:44:21.566Z" },
+]
+
+[[package]]
 name = "boolean-py"
 version = "5.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2374,6 +2387,11 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+crosspage = [
+    { name = "beautifulsoup4" },
+    { name = "markdown-it-py" },
+    { name = "playwright" },
+]
 dev = [
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -2481,6 +2499,7 @@ requires-dist = [
     { name = "aiofiles", marker = "extra == 'webapp'", specifier = ">=23.2.1" },
     { name = "aiohttp", marker = "extra == 'full'", specifier = ">=3.9.0" },
     { name = "bandit", extras = ["toml"], marker = "extra == 'legacy-dev'", specifier = ">=1.7.0" },
+    { name = "beautifulsoup4", marker = "extra == 'crosspage'", specifier = ">=4.12.0" },
     { name = "click", marker = "extra == 'full'", specifier = ">=8.1.0" },
     { name = "comtypes", marker = "sys_platform == 'win32' and extra == 'full'", specifier = ">=1.2.0" },
     { name = "comtypes", marker = "sys_platform == 'win32' and extra == 'scanner'", specifier = ">=1.2.0" },
@@ -2503,6 +2522,7 @@ requires-dist = [
     { name = "indra-ocr", marker = "extra == 'full'", specifier = ">=0.2.0" },
     { name = "jinja2", marker = "extra == 'full'", specifier = ">=3.1.0" },
     { name = "jinja2", marker = "extra == 'webapp'", specifier = ">=3.1.0" },
+    { name = "markdown-it-py", marker = "extra == 'crosspage'", specifier = ">=3.0.0" },
     { name = "matplotlib", marker = "extra == 'full'", specifier = ">=3.11.1" },
     { name = "mypy", marker = "extra == 'legacy-dev'", specifier = ">=1.8.0" },
     { name = "opencv-python", marker = "extra == 'full'", specifier = ">=4.8.0" },
@@ -2512,6 +2532,7 @@ requires-dist = [
     { name = "pillow", specifier = ">=10.0.0" },
     { name = "pillow", marker = "extra == 'full'", specifier = ">=10.0.0" },
     { name = "pip-audit", marker = "extra == 'legacy-dev'", specifier = ">=2.7.0" },
+    { name = "playwright", marker = "extra == 'crosspage'", specifier = ">=1.40.0" },
     { name = "playwright", marker = "extra == 'legacy-dev'", specifier = ">=1.40.0" },
     { name = "pre-commit", marker = "extra == 'legacy-dev'", specifier = ">=3.6.0" },
     { name = "prefab-ui", marker = "extra == 'full'", specifier = ">=0.14.0" },
@@ -2566,7 +2587,7 @@ requires-dist = [
     { name = "verovio", marker = "extra == 'ml'", specifier = ">=6.3.0" },
     { name = "watchfiles", marker = "extra == 'full'", specifier = ">=0.21.0" },
 ]
-provides-extras = ["dev", "full", "ml", "webapp", "scanner", "legacy-dev"]
+provides-extras = ["crosspage", "dev", "full", "ml", "webapp", "scanner", "legacy-dev"]
 
 [[package]]
 name = "onnxruntime"
@@ -4208,6 +4229,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/e8/c4/ba2f8066cceb6f23394729afe52f3bf7adec04bf9ed2c820b39e19299111/sortedcontainers-2.4.0.tar.gz", hash = "sha256:25caa5a06cc30b6b83d11423433f65d1f9d76c4c6a0c90e3379eaa43b9bfdb88", size = 30594, upload-time = "2021-05-16T22:03:42.897Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/32/46/9cb0e58b2deb7f82b84065f37f3bffeb12413f947f9388e4cac22c4621ce/sortedcontainers-2.4.0-py2.py3-none-any.whl", hash = "sha256:a163dcaede0f1c021485e957a39245190e74249897e2ae4b2aa38595db237ee0", size = 29575, upload-time = "2021-05-16T22:03:41.177Z" },
+]
+
+[[package]]
+name = "soupsieve"
+version = "4.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/95/48/21a393ff731b8f928fa4f8176f9a7ceba2252ee60a5149f25b45c292aa5c/soupsieve-4.1.tar.gz", hash = "sha256:ca9abf7126667010d8f6e9b39bfc1bc3b23c8aed9bcb0f54a754dde969bb8aab", size = 161955, upload-time = "2026-11-10T01:59:50.399Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/88/73/6a2087c72975cfc07394623bca8d17654342ea4055ae368deafe5a81a542/soupsieve-4.1-py3-none-any.whl", hash = "sha256:e4d667b3974ce6e038e7390486b8093369854a1d345ffdd4c121dfc4a782e809", size = 52302, upload-time = "2026-11-10T01:59:48.571Z" },
 ]
 
 [[package]]

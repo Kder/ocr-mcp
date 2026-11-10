@@ -1,7 +1,9 @@
 """Configuration for remote OCR; never initializes local models or cache directories."""
 
 import os
+import tempfile
 from pathlib import Path
+from typing import Literal
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
@@ -21,10 +23,23 @@ class RemoteOCRConfig(BaseModel):
     ovisocr3_prompt: str = Field(
         default_factory=lambda: env("OVISOCR3_PROMPT", "Convert this page to Markdown."), min_length=1
     )
+    tool_profile: Literal["basic", "document", "crosspage"] = Field(
+        default_factory=lambda: env("OCR_MCP_PROFILE", "basic")
+    )
+    exposed_tools: str = Field(default_factory=lambda: env("OCR_MCP_TOOLS", ""))
+    max_prompt_chars: int = Field(default_factory=lambda: int(env("OCR_MAX_PROMPT_CHARS", "200000")), gt=0)
+    ovisocr3_max_tokens: int = Field(default_factory=lambda: int(env("OVISOCR3_MAX_TOKENS", "16384")), gt=0, le=16384)
     max_file_bytes: int = Field(default_factory=lambda: int(env("OCR_MAX_FILE_BYTES", "52428800")), gt=0)
     max_image_pixels: int = Field(default_factory=lambda: int(env("OCR_MAX_IMAGE_PIXELS", "25000000")), gt=0)
     max_pdf_pages: int = Field(default_factory=lambda: int(env("OCR_MAX_PDF_PAGES", "100")), gt=0)
     max_output_chars: int = Field(default_factory=lambda: int(env("OCR_MAX_OUTPUT_CHARS", "1000000")), gt=0)
+    crosspage_max_pages: int = Field(default_factory=lambda: int(env("OCR_CROSSPAGE_MAX_PAGES", "20")), gt=0)
+    crosspage_artifact_dir: Path = Field(
+        default_factory=lambda: Path(
+            env("OCR_ARTIFACT_DIR", str(Path(tempfile.gettempdir()) / "ocr-mcp-tables"))
+        ).expanduser()
+    )
+    chromium_executable: str | None = Field(default_factory=lambda: os.getenv("OCR_CHROMIUM_EXECUTABLE") or None)
     document_root: Path | None = Field(
         default_factory=lambda: (
             Path(os.environ["OCR_DOCUMENT_ROOT"]).expanduser().resolve() if os.getenv("OCR_DOCUMENT_ROOT") else None
