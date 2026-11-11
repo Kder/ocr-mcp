@@ -2,6 +2,7 @@
 
 import argparse
 import os
+from pathlib import Path
 from typing import Literal
 
 from dotenv import load_dotenv
@@ -32,12 +33,14 @@ def create_server(config: RemoteOCRConfig | None = None) -> FastMCP:
         pages: list[int] | None = None,
         dpi: int = 200,
         force_ocr: bool = False,
+        pdf_strategy: Literal["auto", "text", "ocr"] = "auto",
         region: list[int] | None = None,
     ) -> dict:
         """OCR a server-local image or PDF. PDF pages are 1-based, sorted and processed sequentially.
 
-        Text-only PDF pages use embedded text; raster/mixed pages use OCR. Set force_ocr
-        to OCR every page. Partial failures preserve successful pages and page errors.
+        PDF auto mode uses embedded text only on text-only pages. pdf_strategy=text
+        explicitly extracts text without OCR; pages lacking text fail visibly.
+        pdf_strategy=ocr renders all pages. force_ocr overrides any strategy to ocr. Partial failures preserve successful pages and page errors.
         backend names are aliases for the configured remote model; there is no fallback.
         """
         return await process_remote_document(
@@ -48,6 +51,7 @@ def create_server(config: RemoteOCRConfig | None = None) -> FastMCP:
             pages=pages,
             dpi=dpi,
             force_ocr=force_ocr,
+            pdf_strategy=pdf_strategy,
             region=region,
         )
 
@@ -56,6 +60,7 @@ def create_server(config: RemoteOCRConfig | None = None) -> FastMCP:
         result = {
             "success": True,
             "transport": "http",
+            "document_root": str(config.document_root),
             "backend": "ovisocr3",
             "model": config.ovisocr3_model,
             "upstream_checked": check_upstream,
@@ -196,7 +201,7 @@ def create_server(config: RemoteOCRConfig | None = None) -> FastMCP:
 
 
 def main() -> None:
-    load_dotenv()
+    load_dotenv(Path.cwd() / ".env")
     parser = argparse.ArgumentParser(description="HTTP-only OCR MCP (external OvisOCR3/OpenAI-compatible service)")
     parser.add_argument("--host", default=os.getenv("MCP_HOST", "127.0.0.1"))
     parser.add_argument("--port", type=int, default=int(os.getenv("MCP_PORT", "10859")))

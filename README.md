@@ -5,6 +5,11 @@ OpenAI-compatible vision endpoint, defaulting to **Halogen / OvisOCR3**. No loca
 weights, GPU runtime, scanner, web UI, Ollama or tool calling on the OCR model.
 Python **3.12+**. MIT license.
 
+Maintained fork: [Kder/ocr-mcp](https://github.com/Kder/ocr-mcp), based on
+[sandraschi/ocr-mcp](https://github.com/sandraschi/ocr-mcp). Original author and
+copyright notices are retained. This fork defaults to external HTTP OCR and keeps
+local models, scanners and the Web UI behind the optional legacy full installation.
+
 ```text
 DSH → HTTP MCP /mcp → OCR-MCP → Halogen /v1/chat/completions → OvisOCR3
                          └── PyMuPDF: PDF text extraction / page rendering
@@ -16,6 +21,7 @@ From the checkout:
 
 ```bash
 uv sync --frozen
+mkdir -p documents
 cp .env.example .env
 # Edit OVISOCR3_BASE_URL to point to your existing Halogen server.
 uv run --frozen ocr-mcp
@@ -42,7 +48,7 @@ Example `process_document` arguments:
 ```json
 {
   "operation": "process_document",
-  "source_path": "/documents/scan.pdf",
+  "source_path": "documents/scan.pdf",
   "backend": "ovisocr3",
   "ocr_mode": "markdown",
   "pages": [1, 3, 5],
@@ -53,13 +59,23 @@ Example `process_document` arguments:
 
 - `source_path` is a **server-local file path**. DSH and OCR-MCP must share a
   volume/path, or the document must already exist on the MCP server. There is no
-  arbitrary URL fetch or upload endpoint. Set `OCR_DOCUMENT_ROOT` to restrict paths.
+  arbitrary URL fetch or upload endpoint. File access is confined to
+  `OCR_DOCUMENT_ROOT`: default `./documents` resolved at startup, or `/documents`
+  in the container image. Blank/unset values use the safe default; they do not
+  allow unrestricted reads. Traversal and symlink escapes are rejected. `get_status`
+  reports the resolved root so clients can use the correct server-local path.
 - Images: PNG, JPEG, WebP, single-frame TIFF/BMP; decoded and sent as PNG. Optional
   `region: [x, y, width, height]` crops an image. Animated/multi-frame images are rejected.
 - PDFs: 1-based page selection, deduplicated and sorted in original page order.
-  Text-only pages use embedded text. Pages with raster images (including scans with
-  digital headers) use full-page OCR. `force_ocr=true` renders every selected page.
-  Embedded PDF text is plain text; its extraction does not reconstruct Markdown tables.
+  `pdf_strategy=auto` (default) retains the conservative rule: text-only pages use
+  embedded text; pages with raster images use OCR. It does not infer that logos or
+  vector-drawn text are harmless. `pdf_strategy=text` explicitly uses embedded text
+  without OCR (including pages with logos); pages without text return `NO_TEXT_LAYER`,
+  preserving successful pages. `pdf_strategy=ocr` renders every selected page.
+  `force_ocr=true` overrides any strategy to `ocr` for compatibility. Text mode can
+  omit visual content and never reconstructs table layout; choose it only when the
+  text layer is known to be complete. Single-page analytical/table tools always use
+  images, independent of this basic PDF strategy.
 - `ocr_mode`: `markdown` (default), `text`, `format` or `auto`. Markdown/format/auto
   use the configurable prompt. HTML tables and LaTeX are returned verbatim.
 - `backend`: `ovisocr3`, `openai-ocr`, and `auto` address the **same configured
@@ -168,9 +184,9 @@ Results include `document_markdown`, `merged_tables`, `steps`, `raw_stages`,
 images, raw generations, renderer diagnostics and final Markdown/crops remain under
 `OCR_ARTIFACT_DIR` (default: the OS temporary directory's `ocr-mcp-tables/`). The
 returned top-level `result.json` uses actual PDF page IDs; intermediate reference
-stage folders retain input-local indices and an explicit page mapping. Manage
-retention/access to these document artifacts in your deployment; no artifact HTTP
-server is exposed. The default document limit is 20 pages (`OCR_CROSSPAGE_MAX_PAGES`)
+stage folders retain input-local indices and an explicit page mapping. New jobs use
+owner-only directories and cross-process locks; no artifact HTTP server is exposed.
+Use the independent cleanup command below for deployment-managed retention. The default document limit is 20 pages (`OCR_CROSSPAGE_MAX_PAGES`)
 and total raw generated characters are bounded by `OCR_MAX_OUTPUT_CHARS`. Readability,
 image/prompt/output limits can stop a long table with retained partial artifacts.
 
@@ -180,6 +196,37 @@ Optional browser tests (mock OCR, real rendering):
 uv run --frozen --extra dev --extra crosspage pytest -c pyproject.toml \
   --confcutdir=tests/crosspage tests/crosspage -o addopts='' -q
 ```
+
+### Artifact retention (independent command)
+
+`OCR_ARTIFACT_RETENTION_DAYS=7` expires jobs by age since completion (or last marker
+write before a process crash). `OCR_ARTIFACT_MAX_GB=5` then prunes oldest inactive
+jobs to a managed-data size target. Set either to `0` to disable that policy. These
+are cleanup policies, not a real-time write quota or an automatically started timer.
+
+```bash
+# Preview only; does not delete documents:
+uv run --frozen ocr-mcp-clean-artifacts
+# Apply configured retention/quota:
+uv run --frozen ocr-mcp-clean-artifacts --apply
+```
+
+Run the installed executable directly from cron/systemd to avoid changing the
+server environment's installed extras. For example, after setting its environment
+(or working directory with the appropriate `.env`), run daily:
+
+```cron
+0 3 * * * cd /path/to/ocr-mcp && /path/to/ocr-mcp/.venv/bin/ocr-mcp-clean-artifacts --apply
+```
+
+The command scans only the configured artifact root and deletes only marked UUID
+job directories created by this version, including failed jobs. It does not follow
+symlinks, remove unrelated directories, or delete running jobs. Active jobs can keep
+the quota above its target; the JSON report includes skipped jobs and quota status.
+Legacy unmarked artifacts are left for manual review. The root must be owned by
+the service user and not group/world writable on POSIX; new job directories are
+`0700`. No cleanup scan occurs during an OCR request. Dry-run remaining-byte counts
+are projections of what applying the reported plan would leave.
 
 ## Configuration
 
@@ -193,10 +240,14 @@ Copy [.env.example](.env.example). Core settings:
 | `OVISOCR3_TIMEOUT` | `180` | Per-page upstream timeout in seconds |
 | `OVISOCR3_PROMPT` | `Convert this page to Markdown.` | Prompt for formatted OCR |
 | `MCP_HOST` / `MCP_PORT` | `127.0.0.1` / `10859` | MCP listening address |
-| `OCR_DOCUMENT_ROOT` | unset | Optional permitted document directory |
+| `OCR_DOCUMENT_ROOT` | `./documents` (Docker: `/documents`) | Required document confinement; blank uses default |
+| `OCR_ARTIFACT_RETENTION_DAYS` | `7` | Cleanup age target; `0` disables expiry |
+| `OCR_ARTIFACT_MAX_GB` | `5` | Cleanup managed-size target; `0` disables quota |
 
-Each OCR request contains one image and **no `tools`**. Requests to the upstream
-are serialized across documents; PDF pages are rendered and released one at a time.
+Each ordinary OCR request contains one image (cross-page requests contain two) and **no `tools`**. Requests to the upstream
+are serialized across documents within one backend instance; PDF pages are processed sequentially.
+The semaphore is not shared across processes or containers. Multi-instance queueing
+must be enforced at the Halogen service/deployment layer.
 Failures are returned without upstream response bodies or document data. Requests
 are not retried automatically, preventing duplicate long-running inference.
 HTTP failures, timeouts, missing models, invalid responses and truncated completions
@@ -207,8 +258,12 @@ Defaults limit input files to 50 MiB, decoded/rendered images to 25 million pixe
 selected PDF pages to 100 and OCR/extracted content to 1 million characters per document.
 See `.env.example` for overrides. DPI range is 150–300. Password-protected PDFs are
 unsupported. Long PDFs can exceed client timeouts/context limits: request fewer pages
-per call. OCR caching, batch directories and output-file export
-are outside this minimal edition.
+per call. `OVISOCR3_TIMEOUT` is an upstream per-page request timeout, not a whole-PDF
+or DSH deadline; measure actual dense-page performance and set both upstream/client
+timeouts accordingly. Requests use `temperature=0` and the configured token cap;
+mock contract tests do not establish that a particular Halogen/NPU version accepts
+these settings or correctly reports truncation. Live model-list and known-image/PDF
+tests are still required. OCR caching and automatic retries remain outside this edition.
 
 ## Container / Podman
 
@@ -226,6 +281,10 @@ from the OCR-MCP container (a shared container-network service name also works).
 The image runs as a non-root user; mounted documents need read permission.
 The lightweight endpoint has no built-in authentication: keep it bound to localhost
 or put an authenticated reverse proxy in front of it when deploying remotely.
+Keep the container listener at `0.0.0.0` for port forwarding; the `-p 127.0.0.1:...`
+argument above restricts the host publication address. Keep documents mounted `:ro`.
+For remote DSH, use an authenticated TLS reverse proxy or a trusted private network;
+changing the document root does not provide authentication or transport encryption.
 The container publishes only MCP; it includes no UI or local OCR binaries.
 
 ## Development and validation
@@ -236,7 +295,7 @@ uv run --frozen pytest -c pyproject.toml --confcutdir=tests/http_only tests/http
 uv run --frozen ruff check src/ocr_mcp/http_server.py src/ocr_mcp/document_pipeline.py \
   src/ocr_mcp/core/http_config.py src/ocr_mcp/core/backend.py \
   src/ocr_mcp/backends/ovisocr3_backend.py src/ocr_mcp/document_tasks.py \
-  src/ocr_mcp/task_prompts.py src/ocr_mcp/output_adapters.py src/ocr_mcp/recursive_tables.py tests/http_only
+  src/ocr_mcp/task_prompts.py src/ocr_mcp/output_adapters.py src/ocr_mcp/recursive_tables.py src/ocr_mcp/artifacts.py tests/http_only
 ```
 
 The isolated test root avoids importing the legacy suite's heavy fixtures. Tests
@@ -260,3 +319,9 @@ The old Web UI entry point remains `ocr-mcp-webapp` and requires the `full` extr
 plus the separate frontend install. Existing documentation under `docs/` largely
 refers to that full application; its plain `uv sync`/`ocr-mcp` instructions are
 superseded by this README. `poetry.lock` is historical; `uv.lock` is authoritative.
+
+The lightweight path shares `RemoteOCRConfig`, the remote backend and document
+pipeline with the legacy remote-OCR adapter; the legacy registry remains for local
+engines. Improvements to shared behavior belong in that core, rather than duplicated
+implementations. File confinement described above applies to the lightweight HTTP
+file tools; it is not a security review of all legacy scanner/Web UI tools.

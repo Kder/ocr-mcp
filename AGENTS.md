@@ -8,7 +8,7 @@ are isolated, so do not create worktrees unless requested.
 - Run: `uv run --frozen ocr-mcp` (HTTP `/mcp`, default 127.0.0.1:10859)
 - Config: `.env.example`, `src/ocr_mcp/core/http_config.py`
 - Tests: `uv run --frozen pytest -c pyproject.toml --confcutdir=tests/http_only tests/http_only -o addopts='' -q`
-- Lint: `uv run --frozen ruff check src/ocr_mcp/http_server.py src/ocr_mcp/document_pipeline.py src/ocr_mcp/core/http_config.py src/ocr_mcp/core/backend.py src/ocr_mcp/backends/ovisocr3_backend.py src/ocr_mcp/document_tasks.py src/ocr_mcp/task_prompts.py src/ocr_mcp/output_adapters.py src/ocr_mcp/recursive_tables.py tests/http_only`
+- Lint: `uv run --frozen ruff check src/ocr_mcp/http_server.py src/ocr_mcp/document_pipeline.py src/ocr_mcp/core/http_config.py src/ocr_mcp/core/backend.py src/ocr_mcp/backends/ovisocr3_backend.py src/ocr_mcp/document_tasks.py src/ocr_mcp/task_prompts.py src/ocr_mcp/output_adapters.py src/ocr_mcp/recursive_tables.py src/ocr_mcp/artifacts.py tests/http_only`
 
 Do not import legacy model/scanner/optimizer modules into the lightweight entry
 point. Keep real model confidence null when the provider does not supply it.
@@ -31,3 +31,10 @@ hashes/licensing and the separate base dependency boundary. Optional tests:
 `uv run --frozen --extra dev --extra crosspage pytest -c pyproject.toml --confcutdir=tests/crosspage tests/crosspage -o addopts='' -q`.
 Default/document profiles must not require browser dependencies. No environment
 publication or Git push is implied by code changes.
+
+HTTP file access is confined to OCR_DOCUMENT_ROOT (default ./documents, Docker
+/documents); blank configuration must never disable confinement. PDF auto remains
+conservative; text/ocr strategies are explicit, and force_ocr takes precedence.
+Artifact jobs are private/marked/locked. Cleanup runs independently using
+ocr-mcp-clean-artifacts (preview) or --apply; never scan/prune in OCR requests,
+follow symlinks, delete unmarked directories or evict active jobs.

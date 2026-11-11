@@ -18,6 +18,7 @@ from typing import Literal
 import pymupdf
 
 from ._vendor.ovisocr3 import document_crosspage as reference
+from .artifacts import artifact_job
 from .backends.ovisocr3_backend import OpenAICompatibleOCRBackend
 from .core.http_config import RemoteOCRConfig
 from .document_pipeline import error
@@ -155,7 +156,15 @@ async def reconstruct_document_tables(
     pending = []
 
     def work():
-        job = config.crosspage_artifact_dir.resolve() / uuid.uuid4().hex
+        try:
+            with artifact_job(config.crosspage_artifact_dir, uuid.uuid4().hex) as job:
+                return run_job(job)
+        except (OSError, ValueError, RuntimeError):
+            return error(
+                "ARTIFACT_STORAGE_UNAVAILABLE", "Artifact root must be private, owned by this user and writable"
+            )
+
+    def run_job(job):
         output = job / "result"
         spent = 0
         raw_stages = []

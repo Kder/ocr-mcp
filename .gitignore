@@ -200,3 +200,6 @@ _dashboard/
 
 # Assessment reports
 reports/
+
+# Default server-local document input; never commit user documents.
+/documents/

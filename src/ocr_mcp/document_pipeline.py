@@ -24,8 +24,12 @@ async def process_remote_document(
     pages: list[int] | None = None,
     dpi: int = 200,
     force_ocr: bool = False,
+    pdf_strategy: str = "auto",
     region: list[int] | None = None,
 ) -> dict[str, Any]:
+    if pdf_strategy not in {"auto", "text", "ocr"}:
+        return error("INVALID_PDF_STRATEGY", "PDF strategy must be auto, text or ocr")
+    strategy = "ocr" if force_ocr else pdf_strategy
     if mode not in {"text", "markdown", "format", "auto"}:
         return error("INVALID_MODE", "Supported modes: text, markdown, format, auto")
     if type(dpi) is not int or not 150 <= dpi <= 300:
@@ -41,6 +45,8 @@ async def process_remote_document(
         if path.suffix.lower() != ".pdf":
             if pages is not None:
                 return error("INVALID_PAGES", "Page selection is only supported for PDFs")
+            if pdf_strategy != "auto":
+                return error("INVALID_PDF_STRATEGY", "PDF strategy only applies to PDFs")
             return await backend.process_image(str(path), mode, region=region)
         if region is not None:
             return error("INVALID_REGION", "Region cropping is only supported for images")
@@ -68,8 +74,11 @@ async def process_remote_document(
                         text = page.get_text().strip()
                         # Any raster content may contain text (including scans with digital headers).
                         # OCR the whole page rather than silently dropping that content.
-                        use_text = bool(text) and not force_ocr and not page.get_images()
-                        if use_text:
+                        use_text = strategy == "text" or (strategy == "auto" and bool(text) and not page.get_images())
+                        if use_text and not text:
+                            result = error("NO_TEXT_LAYER", "Page has no extractable text; use pdf_strategy=ocr")
+                            method = "digital_text"
+                        elif use_text:
                             result = {
                                 "success": True,
                                 "text": text,
@@ -123,6 +132,7 @@ async def process_remote_document(
                 "text": "\n\n---\n\n".join(sections),
                 "pages": results,
                 "page_count": len(document),
+                "pdf_strategy": strategy,
                 "processed_pages": completed,
                 "failed_pages": len(results) - completed,
                 "confidence": None,

@@ -9,6 +9,7 @@ description = "Lightweight HTTP MCP for OvisOCR3 and OpenAI-compatible image/PDF
 authors = [
     {name = "Sandra", email = "sandraschipal@gmail.com"}
 ]
+maintainers = [{name = "Kder"}]
 license = {text = "MIT"}
 readme = "README.md"
 requires-python = ">=3.12"
@@ -142,13 +143,15 @@ legacy-dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/sandraschi/ocr-mcp"
-Repository = "https://github.com/sandraschi/ocr-mcp"
-Issues = "https://github.com/sandraschi/ocr-mcp/issues"
-Documentation = "https://github.com/sandraschi/ocr-mcp/blob/main/README.md"
+Homepage = "https://github.com/Kder/ocr-mcp"
+Repository = "https://github.com/Kder/ocr-mcp"
+Issues = "https://github.com/Kder/ocr-mcp/issues"
+Documentation = "https://github.com/Kder/ocr-mcp/blob/master/README.md"
+Upstream = "https://github.com/sandraschi/ocr-mcp"
 
 [project.scripts]
 ocr-mcp = "ocr_mcp.http_server:main"
+ocr-mcp-clean-artifacts = "ocr_mcp.artifacts:main"
 ocr-mcp-full = "ocr_mcp.server:main"
 ocr-mcp-webapp = "ocr_mcp.webapp_runner:main"
 ocr-mcp-test = "scripts.run_tests:main"

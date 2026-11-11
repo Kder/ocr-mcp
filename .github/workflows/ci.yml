@@ -32,7 +32,7 @@ jobs:
           src/ocr_mcp/core/http_config.py src/ocr_mcp/core/backend.py
           src/ocr_mcp/backends/ovisocr3_backend.py
           src/ocr_mcp/document_tasks.py src/ocr_mcp/task_prompts.py
-          src/ocr_mcp/output_adapters.py src/ocr_mcp/recursive_tables.py tests/http_only tests/crosspage
+          src/ocr_mcp/output_adapters.py src/ocr_mcp/recursive_tables.py src/ocr_mcp/artifacts.py tests/http_only tests/crosspage
       - run: uv build
 
   recursive-crosspage:

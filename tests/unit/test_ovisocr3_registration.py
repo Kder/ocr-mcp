@@ -25,6 +25,7 @@ async def test_legacy_document_entry_preserves_null_confidence(config, tmp_path)
     def handler(request):
         return httpx.Response(200, json={"choices": [{"message": {"content": "# Remote text"}}]})
 
+    config.document_root = tmp_path
     manager = BackendManager(config)
     manager.backends["ovisocr3"] = OvisOCR3Backend(config, transport=httpx.MockTransport(handler))
     path = tmp_path / "image.png"

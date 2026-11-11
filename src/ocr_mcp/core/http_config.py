@@ -40,11 +40,23 @@ class RemoteOCRConfig(BaseModel):
         ).expanduser()
     )
     chromium_executable: str | None = Field(default_factory=lambda: os.getenv("OCR_CHROMIUM_EXECUTABLE") or None)
-    document_root: Path | None = Field(
-        default_factory=lambda: (
-            Path(os.environ["OCR_DOCUMENT_ROOT"]).expanduser().resolve() if os.getenv("OCR_DOCUMENT_ROOT") else None
-        )
+    artifact_retention_days: float = Field(
+        default_factory=lambda: float(env("OCR_ARTIFACT_RETENTION_DAYS", "7")), ge=0, allow_inf_nan=False
     )
+    artifact_max_gb: float = Field(
+        default_factory=lambda: float(env("OCR_ARTIFACT_MAX_GB", "5")), ge=0, allow_inf_nan=False
+    )
+    document_root: Path = Field(
+        default_factory=lambda: Path(env("OCR_DOCUMENT_ROOT", "").strip() or "documents").expanduser().resolve()
+    )
+
+    @field_validator("document_root")
+    @classmethod
+    def validate_document_root(cls, value: Path) -> Path:
+        resolved = value.expanduser().resolve()
+        if resolved == Path(resolved.anchor):
+            raise ValueError("OCR_DOCUMENT_ROOT must not be a filesystem root")
+        return resolved
 
     @field_validator("ovisocr3_base_url")
     @classmethod

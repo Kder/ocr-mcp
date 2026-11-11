@@ -259,7 +259,7 @@ async def test_mcp_tools_and_document_call(image, monkeypatch):
             "process_document", {"source_path": str(image), "backend": "ovisocr3", "ocr_mode": "markdown"}
         )
         assert not result.is_error and result.data["success"]
-        missing = await client.call_tool("process_document", {"source_path": "missing.png"})
+        missing = await client.call_tool("process_document", {"source_path": str(image.parent / "missing.png")})
         assert missing.data["error_code"] == "FILE_NOT_FOUND"
 
 

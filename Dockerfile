@@ -3,7 +3,8 @@ WORKDIR /app
 COPY pyproject.toml README.md ./
 COPY src/ ./src/
 RUN pip install --no-cache-dir .
-RUN useradd --create-home ocr
+RUN useradd --create-home ocr && mkdir -p /documents && chown ocr:ocr /documents
+ENV OCR_DOCUMENT_ROOT=/documents
 USER ocr
 EXPOSE 10859
 CMD ["ocr-mcp", "--host", "0.0.0.0", "--port", "10859"]

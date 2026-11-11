@@ -110,6 +110,17 @@ async def test_installed_http_server_end_to_end(tmp_path, profile):
                 assert result.data["success"] and result.data["processed_pages"] == 2
                 assert "Embedded text" in result.data["text"] and "Mock OCR" in result.data["text"]
                 assert len(requests) == 2
+                text_only = await client.call_tool(
+                    "process_document", {"source_path": str(pdf), "pdf_strategy": "text"}
+                )
+                assert not text_only.data["success"] and text_only.data["partial_success"]
+                assert text_only.data["pages"][1]["error_code"] == "NO_TEXT_LAYER"
+                assert len(requests) == 2
+                outside = await client.call_tool(
+                    "process_document", {"source_path": str(tmp_path.parent / "outside.pdf")}
+                )
+                assert outside.data["error_code"] == "PATH_NOT_ALLOWED"
+                assert len(requests) == 2
         finally:
             process.terminate()
             try:
