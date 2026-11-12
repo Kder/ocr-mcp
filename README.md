@@ -33,6 +33,11 @@ switch in the lightweight service. MCP endpoint: `http://127.0.0.1:10859/mcp`.
 `--host` and `--port` override the listening address. Halogen must already serve
 `OvisOCR3`; OCR-MCP does not deploy or download the model.
 
+The lightweight entry point explicitly uses **stateless Streamable HTTP**. Tools
+do not depend on a persistent MCP session, and old `Mcp-Session-Id` headers do not
+prevent new calls after a server restart. In-flight OCR work is not resumable;
+the service does not automatically replay interrupted requests.
+
 Base dependencies: FastMCP, httpx, Pillow, PyMuPDF, Pydantic, python-dotenv, and
 their transitive dependencies. Torch, Transformers, EasyOCR, OpenCV, Diffusers,
 NumPy, FastAPI, Tesseract and Poppler are **not required** by this edition.
@@ -287,6 +292,23 @@ For remote DSH, use an authenticated TLS reverse proxy or a trusted private netw
 changing the document root does not provide authentication or transport encryption.
 The container publishes only MCP; it includes no UI or local OCR binaries.
 
+## Troubleshooting MCP sessions
+
+`Session not found` (HTTP 404, JSON-RPC `-32600`) on an older stateful deployment
+means the receiving MCP process does not recognize the client's session ID. This
+can follow a restart, expired session or routing to another worker; it occurs
+before the OCR tool runs and does not establish that Halogen or the model is down.
+Disconnect and reconnect the OCR MCP connection in DSH to initialize a fresh
+session, then call `get_status` before retrying the document. Repeating the same
+request with an expired session ID cannot repair that session.
+
+Upgrade and restart all OCR-MCP instances to use the stateless entry point above.
+Custom ASGI deployments using `create_server().http_app(...)` must also pass
+`stateless_http=True`. A plain `GET /mcp` returns **405** in this mode because no
+standalone SSE session stream is provided; use a Streamable HTTP MCP client and
+`get_status` to check the service, then `get_status(check_upstream=true)` to check
+Halogen separately. Client/proxy timeouts still need to allow long OCR requests.
+
 ## Development and validation
 
 ```bash
@@ -301,7 +323,8 @@ uv run --frozen ruff check src/ocr_mcp/http_server.py src/ocr_mcp/document_pipel
 The isolated test root avoids importing the legacy suite's heavy fixtures. Tests
 cover the API contract, image formats/cropping, errors, PDF page ordering and partial
 failures, mixed PDFs, resource limits, and an installed HTTP server over TCP against
-a simulated Halogen endpoint. They do **not** validate actual OvisOCR3 recognition
+a simulated Halogen endpoint, plus old-session calls across upgrades and server
+restarts. They do **not** validate actual OvisOCR3 recognition
 accuracy or NPU execution. For real deployment, run `get_status(check_upstream=true)`
 and process a known image and mixed PDF through your Halogen instance.
 

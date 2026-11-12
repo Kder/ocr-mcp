@@ -206,7 +206,8 @@ def main() -> None:
     parser.add_argument("--host", default=os.getenv("MCP_HOST", "127.0.0.1"))
     parser.add_argument("--port", type=int, default=int(os.getenv("MCP_PORT", "10859")))
     args = parser.parse_args()
-    create_server().run(transport="http", host=args.host, port=args.port, path="/mcp")
+    # OCR tools need no session state; old client IDs must not break calls after a restart.
+    create_server().run(transport="http", host=args.host, port=args.port, path="/mcp", stateless_http=True)
 
 
 if __name__ == "__main__":

@@ -9,6 +9,7 @@ import socket
 import subprocess
 import sys
 import threading
+from contextlib import asynccontextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import httpx
@@ -16,6 +17,110 @@ import pymupdf
 import pytest
 from fastmcp import Client
 from PIL import Image
+
+
+@asynccontextmanager
+async def running_http_server(tmp_path, environment, port, *, stateful=False):
+    """Start the real entry point, or the old stateful transport for upgrade tests."""
+    command = [sys.executable, "-m", "ocr_mcp", "--host", "127.0.0.1", "--port", str(port)]
+    if stateful:
+        command = [
+            sys.executable,
+            "-c",
+            "import sys; from ocr_mcp.http_server import create_server; "
+            "create_server().run(transport='http', host='127.0.0.1', "
+            "port=int(sys.argv[1]), path='/mcp', stateless_http=False)",
+            str(port),
+        ]
+    url = f"http://127.0.0.1:{port}/mcp"
+    with (tmp_path / "server.log").open("a") as log:
+        process = subprocess.Popen(command, env=environment, stdout=log, stderr=log)
+        try:
+            async with httpx.AsyncClient() as client:
+                for _ in range(100):
+                    assert process.poll() is None, (tmp_path / "server.log").read_text()
+                    try:
+                        response = await client.get(url, timeout=0.5)
+                        # Stateless Streamable HTTP intentionally has no GET stream.
+                        if response.status_code in {200, 307, 405, 406}:
+                            break
+                    except httpx.RequestError:
+                        pass
+                    await asyncio.sleep(0.1)
+                else:
+                    raise AssertionError("HTTP MCP did not become ready")
+            yield url
+        finally:
+            process.terminate()
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=5)
+
+
+async def rpc(client, url, method, params=None):
+    response = await client.post(
+        url,
+        json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params or {}},
+    )
+    assert response.status_code == 200, response.text
+    if response.headers["content-type"].startswith("text/event-stream"):
+        messages = [json.loads(line[5:]) for line in response.text.splitlines() if line.startswith("data:")]
+        body = next(message for message in messages if message.get("id") == 1)
+    else:
+        body = response.json()
+    assert "error" not in body, body
+    return response, body["result"]
+
+
+async def test_stale_session_header_does_not_block_upgrade_or_restart(tmp_path):
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    environment = os.environ.copy()
+    environment.update(OCR_MCP_PROFILE="basic", OCR_MCP_TOOLS="", OCR_DOCUMENT_ROOT=str(tmp_path))
+    initialize = {
+        "protocolVersion": "2025-11-25",
+        "capabilities": {},
+        "clientInfo": {"name": "session-regression", "version": "1"},
+    }
+    pdf = tmp_path / "text.pdf"
+    with pymupdf.open() as document:
+        document.new_page().insert_text((40, 40), "Text after restart")
+        document.save(pdf)
+
+    async with httpx.AsyncClient(headers={"Accept": "application/json, text/event-stream"}) as client:
+        async with running_http_server(tmp_path, environment, port, stateful=True) as url:
+            response, result = await rpc(client, url, "initialize", initialize)
+            session = response.headers["mcp-session-id"]
+            client.headers.update({"Mcp-Session-Id": session, "MCP-Protocol-Version": result["protocolVersion"]})
+            response = await client.post(url, json={"jsonrpc": "2.0", "method": "notifications/initialized"})
+            assert response.status_code == 202
+            _, result = await rpc(client, url, "tools/call", {"name": "get_status"})
+            assert result["structuredContent"]["success"]
+
+        # Keep the real old session header across an upgrade and another restart.
+        for _ in range(2):
+            async with running_http_server(tmp_path, environment, port) as url:
+                response, result = await rpc(client, url, "tools/list")
+                assert "mcp-session-id" not in response.headers
+                assert {tool["name"] for tool in result["tools"]} == {"process_document", "get_status"}
+                _, result = await rpc(client, url, "tools/call", {"name": "get_status"})
+                assert result["structuredContent"]["success"]
+                _, result = await rpc(
+                    client,
+                    url,
+                    "tools/call",
+                    {"name": "process_document", "arguments": {"source_path": str(pdf)}},
+                )
+                assert result["structuredContent"]["success"]
+                assert "Text after restart" in result["structuredContent"]["text"]
+                # Reinitialization without an old ID also remains valid.
+                session = client.headers.pop("Mcp-Session-Id")
+                response, _ = await rpc(client, url, "initialize", initialize)
+                assert "mcp-session-id" not in response.headers
+                client.headers["Mcp-Session-Id"] = session
 
 
 @pytest.mark.parametrize("profile", ["basic", "document", "crosspage"])
@@ -75,27 +180,9 @@ async def test_installed_http_server_end_to_end(tmp_path, profile):
         document.new_page().insert_text((40, 40), "Embedded text")
         document.new_page(width=180, height=180).insert_image(pymupdf.Rect(0, 0, 180, 180), filename=str(image))
         document.save(pdf)
-    with (tmp_path / "server.log").open("w") as log:
-        process = subprocess.Popen(
-            [sys.executable, "-m", "ocr_mcp", "--host", "127.0.0.1", "--port", str(port)],
-            env=environment,
-            stdout=log,
-            stderr=log,
-        )
-        try:
-            async with httpx.AsyncClient() as client:
-                for _ in range(100):
-                    assert process.poll() is None, (tmp_path / "server.log").read_text()
-                    try:
-                        response = await client.get(f"http://127.0.0.1:{port}/mcp", timeout=0.5)
-                        if response.status_code in {200, 307, 406}:
-                            break
-                    except httpx.RequestError:
-                        pass
-                    await asyncio.sleep(0.1)
-                else:
-                    raise AssertionError("HTTP MCP did not become ready")
-            async with Client(f"http://127.0.0.1:{port}/mcp") as client:
+    try:
+        async with running_http_server(tmp_path, environment, port) as url:
+            async with Client(url) as client:
                 expected = {"process_document", "get_status"}
                 if profile in {"document", "crosspage"}:
                     expected |= {"analyze_document", "extract_information", "reconstruct_table"}
@@ -121,13 +208,7 @@ async def test_installed_http_server_end_to_end(tmp_path, profile):
                 )
                 assert outside.data["error_code"] == "PATH_NOT_ALLOWED"
                 assert len(requests) == 2
-        finally:
-            process.terminate()
-            try:
-                process.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait(timeout=5)
-            upstream.shutdown()
-            upstream.server_close()
-            thread.join(timeout=5)
+    finally:
+        upstream.shutdown()
+        upstream.server_close()
+        thread.join(timeout=5)
